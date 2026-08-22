@@ -18,3 +18,9 @@ management:
     web:
       exposure:
         include: health,info,metrics
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-change-me-please-32bytes-minimum-length}
+    access-token-ttl: 900
+    refresh-token-ttl: 604800
