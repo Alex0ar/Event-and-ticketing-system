@@ -4,6 +4,7 @@ import com.ticketflow.ticketflow.common.error.ConflictException;
 import com.ticketflow.ticketflow.common.error.NotFoundException;
 import com.ticketflow.ticketflow.common.error.UnauthorizedException;
 import com.ticketflow.ticketflow.security.JwtService;
+import com.ticketflow.ticketflow.security.RefreshTokenService;
 import com.ticketflow.ticketflow.user.domain.Role;
 import com.ticketflow.ticketflow.user.domain.User;
 import com.ticketflow.ticketflow.user.dto.LoginRequest;
@@ -22,11 +23,13 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService, RefreshTokenService refreshTokenService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @Transactional
@@ -47,6 +50,13 @@ public class UserService {
         return new UserResponse(user.getId(), user.getEmail(), user.getFullName(), user.getRoles());
     }
 
+    @Transactional
+    public UserResponse getByEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        return toResponse(user);
+    }
+
     public TokenResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new UnauthorizedException("Invalid email"));
@@ -55,13 +65,36 @@ public class UserService {
         }
 
         String accessToken = jwtService.generateAccessToken(user);
-        return new TokenResponse(accessToken, "Bearer");
+        String refreshToken = refreshTokenService.issue(user.getId());
+        return new TokenResponse(accessToken, refreshToken, "Bearer");
+    }
+
+    public TokenResponse refresh(String refreshToken) {
+        Long userId = refreshTokenService.consume(refreshToken);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
+        String newAccess = jwtService.generateAccessToken(user);
+        String newRefresh = refreshTokenService.issue(user.getId());
+        return new TokenResponse(newAccess, newRefresh, "Bearer");
+    }
+
+    public void logout(Long userId) {
+        refreshTokenService.revokeAll(userId);
+    }
+
+    public void logoutByEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        refreshTokenService.revokeAll(user.getId());
     }
 
     @Transactional
-    public UserResponse getByEmail(String email) {
-        User user = userRepository.findByEmail(email)
+    public UserResponse grantRole(Long userId, Role role) {
+        User user  = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
-        return toResponse(user);
+        user.getRoles().add(role);
+        User saved =  userRepository.save(user);
+        return toResponse(saved);
     }
+
 }

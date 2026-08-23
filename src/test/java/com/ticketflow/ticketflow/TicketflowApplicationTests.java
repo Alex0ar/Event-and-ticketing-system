@@ -3,8 +3,7 @@ package com.ticketflow.ticketflow;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class TicketflowApplicationTests {
+class TicketflowApplicationTests extends IntegrationTest {
 
     @Test
     void contextLoads() {

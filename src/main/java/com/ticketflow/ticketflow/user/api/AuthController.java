@@ -1,9 +1,7 @@
 package com.ticketflow.ticketflow.user.api;
 
-import com.ticketflow.ticketflow.user.dto.LoginRequest;
-import com.ticketflow.ticketflow.user.dto.RegisterRequest;
-import com.ticketflow.ticketflow.user.dto.TokenResponse;
-import com.ticketflow.ticketflow.user.dto.UserResponse;
+import com.ticketflow.ticketflow.security.RefreshTokenService;
+import com.ticketflow.ticketflow.user.dto.*;
 import com.ticketflow.ticketflow.user.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -31,5 +29,10 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         return ResponseEntity.ok(userService.login(loginRequest));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshRequest refreshRequest) {
+        return ResponseEntity.ok(userService.refresh(refreshRequest.refreshToken()));
     }
 }
