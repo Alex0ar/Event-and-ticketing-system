@@ -34,10 +34,10 @@ public class Event extends BaseEntity {
     private Instant endsAt;
 
     @Column(nullable = false)
-    private Instant salesStartAt;
+    private Instant salesStartsAt;
 
     @Column(nullable = false)
-    private Instant salesEndAt;
+    private Instant salesEndsAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

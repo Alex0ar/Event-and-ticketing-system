@@ -34,10 +34,10 @@ public class TicketTier extends BaseEntity {
     private Integer totalQuantity;
 
     @Column(nullable = false)
-    private Integer reservedQuantity;
+    private Integer reservedQuantity = 0;
 
     @Column(nullable = false)
-    private Integer soldQuantity;
+    private Integer soldQuantity = 0;
 
     @Column(nullable = false)
     private Integer maxPerOrder;
