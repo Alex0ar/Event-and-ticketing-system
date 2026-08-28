@@ -1,0 +1,1 @@
+ALTER TABLE reservation_items ALTER COLUMN unit_price_amount TYPE NUMERIC(10, 2);
