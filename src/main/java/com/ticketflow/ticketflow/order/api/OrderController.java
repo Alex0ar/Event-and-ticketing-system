@@ -2,6 +2,7 @@ package com.ticketflow.ticketflow.order.api;
 
 import com.ticketflow.ticketflow.order.dto.OrderResponse;
 import com.ticketflow.ticketflow.order.service.OrderService;
+import com.ticketflow.ticketflow.security.CurrentUserProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,9 +15,11 @@ import java.util.List;
 @PreAuthorize("hasRole('CUSTOMER')")
 public class OrderController {
     private final OrderService orderService;
+    private final CurrentUserProvider currentUser;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, CurrentUserProvider currentUser) {
         this.orderService = orderService;
+        this.currentUser = currentUser;
     }
 
     @PostMapping("/initiate")

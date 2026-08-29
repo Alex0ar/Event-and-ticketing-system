@@ -61,11 +61,14 @@ public class OrderService {
         p.setIdempotencyKey(idempotencyKey);
         p.setAmount(o.getTotal());
         p.setUserId(currentUser.currentUserId());
+        p.setCurrency(o.getCurrency());
+        p.setStatus(PaymentStatus.INITIATED);
         Payment savedPayment;
         try {
             savedPayment = paymentRepository.saveAndFlush(p);
         } catch (DataIntegrityViolationException e) {
-            Payment existing = paymentRepository.findByUserIdAndIdempotencyKey(currentUser.currentUserId(), idempotencyKey);
+            Payment existing = paymentRepository.findByUserIdAndIdempotencyKey(currentUser.currentUserId(), idempotencyKey)
+                    .orElseThrow(() -> e);
             return handleExistingPayment(existing);
         }
         o.setStatus(OrderStatus.PAID);
@@ -78,12 +81,12 @@ public class OrderService {
         return orderRepository.findAllByUserId(currentUser.currentUserId());
     }
 
-    private OrderResponse handleExistingPayment(Payment existing) {
-        return switch (existing.getStatus()) {
+    private OrderResponse handleExistingPayment(Payment existingPayment) {
+        return switch (existingPayment.getStatus()) {
             case FAILED -> throw new FailedPaymentException("Payment failed");
             case INITIATED -> throw new PaymentInProgres("Payment is already initiated");
             case SUCCESSED -> {
-                Order order = orderRepository.findById(existing.getOrderId())
+                Order order = orderRepository.findById(existingPayment.getOrderId())
                         .orElseThrow(() -> new NotFoundException("Order not found"));
                 yield toResponse(order);
             }

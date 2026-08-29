@@ -18,7 +18,7 @@ public class Payment extends BaseEntity {
     Long userId;
     @Column(nullable = false)
     Long orderId;
-    @Column(nullable = false)
+    @Column(nullable = true)
     String providerRef;
     @Column(nullable = false)
     BigDecimal amount;
