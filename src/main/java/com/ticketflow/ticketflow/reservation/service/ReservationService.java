@@ -37,14 +37,16 @@ public class ReservationService {
     private final TicketTierRepository tierRepository;
     private final EventRepository eventRepository;
     private final CurrentUserProvider currentUser;
+    private final ReservationItemRepository reservationItemRepository;
 
 
-    public ReservationService(ReservationRepository reservationRepository, ReservationItemRepository itemRepository, TicketTierRepository tierRepository, EventRepository eventRepository, CurrentUserProvider currentUser) {
+    public ReservationService(ReservationRepository reservationRepository, ReservationItemRepository itemRepository, TicketTierRepository tierRepository, EventRepository eventRepository, CurrentUserProvider currentUser, ReservationItemRepository reservationItemRepository) {
         this.reservationRepository = reservationRepository;
         this.itemRepository = itemRepository;
         this.tierRepository = tierRepository;
         this.eventRepository = eventRepository;
         this.currentUser = currentUser;
+        this.reservationItemRepository = reservationItemRepository;
     }
 
     @Transactional
@@ -108,6 +110,26 @@ public class ReservationService {
         returnInventory(reservationId);
         reservation.setStatus(ReservationStatus.CANCELLED);
         reservationRepository.save(reservation);
+    }
+
+    public BigDecimal getReservationTotalCost(Reservation reservation) {
+        List<ReservationItem> items = reservationItemRepository.findByReservationId(reservation.getId());
+        BigDecimal total = BigDecimal.ZERO;
+        for (ReservationItem item : items) {
+            total = total.add(item.getUnitPriceAmount().multiply(BigDecimal.valueOf(item.getQuantity())));
+        }
+        return total;
+    }
+
+    public Reservation confirmReservation(Long ReservationId) {
+        Reservation r =  reservationRepository.findById(ReservationId)
+                .orElseThrow(() -> new NotFoundException("Reservation not found"));
+        List<ReservationItem> items = reservationItemRepository.findByReservationId(ReservationId);
+        for  (ReservationItem item : items) {
+            tierRepository.reservedToSold(item.getTierId(), item.getQuantity());
+        }
+        r.setStatus(ReservationStatus.CONFIRMED);
+        return reservationRepository.save(r);
     }
 
     // --- helper ---

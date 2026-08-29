@@ -33,4 +33,13 @@ public interface TicketTierRepository extends JpaRepository<TicketTier, Long> {
     int releaseQuantity(@Param("id") Long tierId, @Param("qty") int qty);
 
     boolean existsByReservedQuantityGreaterThan(int value);
+
+    @Modifying
+    @Transactional
+    @Query ("""
+        UPDATE TicketTier t
+            SET t.reservedQuantity = t.reservedQuantity - :qty, t.soldQuantity = t.soldQuantity + :qty
+                WHERE t.id = :id AND t.reservedQuantity >= :qty
+    """)
+    int reservedToSold(@Param("id") Long tierId, @Param("qty") int qty);
 }
