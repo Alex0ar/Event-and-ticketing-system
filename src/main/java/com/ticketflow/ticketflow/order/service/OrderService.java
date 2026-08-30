@@ -17,6 +17,7 @@ import com.ticketflow.ticketflow.reservation.domain.ReservationStatus;
 import com.ticketflow.ticketflow.reservation.repository.ReservationRepository;
 import com.ticketflow.ticketflow.reservation.service.ReservationService;
 import com.ticketflow.ticketflow.security.CurrentUserProvider;
+import com.ticketflow.ticketflow.ticket.service.TicketService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
@@ -30,14 +31,16 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentGateaway paymentGateaway;
+    private final TicketService ticketService;
 
-    public OrderService(CurrentUserProvider currentUser, ReservationRepository reservationRepository, ReservationService reservationService, OrderRepository orderRepository, PaymentRepository paymentRepository, PaymentGateaway paymentGateaway) {
+    public OrderService(CurrentUserProvider currentUser, ReservationRepository reservationRepository, ReservationService reservationService, OrderRepository orderRepository, PaymentRepository paymentRepository, PaymentGateaway paymentGateaway, TicketService ticketService) {
         this.currentUser = currentUser;
         this.reservationRepository = reservationRepository;
         this.reservationService = reservationService;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.paymentGateaway = paymentGateaway;
+        this.ticketService = ticketService;
     }
 
     public OrderResponse createOrder () {
@@ -68,7 +71,9 @@ public class OrderService {
         o.setStatus(OrderStatus.PAID);
         reservationService.confirmReservation(o.getReservationId());
         paymentGateaway.charge(savedPayment.getId());
-        return toResponse(orderRepository.save(o));
+        OrderResponse savedOrder = toResponse(orderRepository.save(o));
+        ticketService.createAndSaveTicket(o.getId(), o.getReservationId());
+        return savedOrder;
     }
 
     public List<OrderResponse> listOwnedOrders() {
