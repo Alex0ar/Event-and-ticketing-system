@@ -5,9 +5,11 @@ import com.ticketflow.ticketflow.reservation.repository.ReservationItemRepositor
 import com.ticketflow.ticketflow.security.CurrentUserProvider;
 import com.ticketflow.ticketflow.ticket.domain.Ticket;
 import com.ticketflow.ticketflow.ticket.domain.TicketStatus;
+import com.ticketflow.ticketflow.ticket.dto.TicketResponse;
 import com.ticketflow.ticketflow.ticket.repository.TicketRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,10 +42,15 @@ public class TicketService {
                 ticketRepository.save(ticket);
             }
         }
+    }
 
+    public List<TicketResponse> listOwnedTickets() {
+        List<Ticket> tickets = ticketRepository.findByOwnerUserId(currentUser.currentUserId());
+        List<TicketResponse> responses = tickets.stream().map(this::toResponse).toList();  // DE VAZUT DACA ESTE CORECT
+        return responses;
+    }
 
-
-
-
+    private TicketResponse toResponse(Ticket ticket) {
+        return new TicketResponse()   // DE TERMINAT DE FACUT
     }
 }
