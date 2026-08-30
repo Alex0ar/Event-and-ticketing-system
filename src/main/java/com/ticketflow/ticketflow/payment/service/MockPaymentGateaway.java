@@ -1,5 +1,7 @@
 package com.ticketflow.ticketflow.payment.service;
 
+import com.ticketflow.ticketflow.common.error.NotFoundException;
+import com.ticketflow.ticketflow.order.domain.Order;
 import com.ticketflow.ticketflow.payment.domain.Payment;
 import com.ticketflow.ticketflow.payment.domain.PaymentStatus;
 import com.ticketflow.ticketflow.payment.dto.PaymentResponse;
@@ -20,13 +22,21 @@ public class MockPaymentGateaway implements PaymentGateaway {
     }
 
     @Override
-    public PaymentResponse charge(long orderId, String idempotencyKey, BigDecimal amount, String currency) {
+    public Payment initiatePayment(Order o, String idempotencyKey) {
         Payment p = new Payment();
-        p.setUserId(currentUser.currentUserId());
-        p.setOrderId(orderId);
+        p.setOrderId(o.getId());
         p.setIdempotencyKey(idempotencyKey);
-        p.setAmount(amount);
-        p.setCurrency(currency);
+        p.setAmount(o.getTotal());
+        p.setUserId(currentUser.currentUserId());
+        p.setCurrency(o.getCurrency());
+        p.setStatus(PaymentStatus.INITIATED);
+        return p;
+    }
+
+    @Override
+    public PaymentResponse charge(Long paymentId) {
+        Payment p = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new NotFoundException("Payment not found"));
         p.setStatus(PaymentStatus.SUCCESSED);
         return toResponse(paymentRepository.save(p));
     }

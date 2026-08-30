@@ -56,13 +56,7 @@ public class OrderService {
         if (!o.getUserId().equals(currentUser.currentUserId())) {
             throw new ConflictException("This order doesn't belong to you");
         }
-        Payment p = new Payment();
-        p.setOrderId(orderId);
-        p.setIdempotencyKey(idempotencyKey);
-        p.setAmount(o.getTotal());
-        p.setUserId(currentUser.currentUserId());
-        p.setCurrency(o.getCurrency());
-        p.setStatus(PaymentStatus.INITIATED);
+        Payment p = paymentGateaway.initiatePayment(o, idempotencyKey);
         Payment savedPayment;
         try {
             savedPayment = paymentRepository.saveAndFlush(p);
@@ -73,7 +67,7 @@ public class OrderService {
         }
         o.setStatus(OrderStatus.PAID);
         reservationService.confirmReservation(o.getReservationId());
-        paymentGateaway.charge(o.getId(), idempotencyKey, o.getTotal(), o.getCurrency());
+        paymentGateaway.charge(savedPayment.getId());
         return toResponse(orderRepository.save(o));
     }
 

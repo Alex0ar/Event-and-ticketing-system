@@ -1,9 +1,12 @@
 package com.ticketflow.ticketflow.payment.service;
 
+import com.ticketflow.ticketflow.order.domain.Order;
+import com.ticketflow.ticketflow.payment.domain.Payment;
 import com.ticketflow.ticketflow.payment.dto.PaymentResponse;
 
 import java.math.BigDecimal;
 
 public interface PaymentGateaway {
-    PaymentResponse charge(long orderId, String idempotencyKey, BigDecimal amount, String currency);
+    Payment initiatePayment(Order o, String idempotencyKey);
+    PaymentResponse charge(Long paymentId);
 }
