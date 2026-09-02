@@ -37,7 +37,7 @@ public class CheckInService {
         var bitmap = new BinaryBitmap(new HybridBinarizer(source));
         String payload = new MultiFormatReader().decode(bitmap).getText();
 
-        int updateSuccess = ticketRepository.validateTicket(Instant.now(), currentUser.currentUserId(), payload);
+        int updateSuccess = ticketRepository.ticketCheckIn(Instant.now(), currentUser.currentUserId(), payload);
         if (updateSuccess > 0) {
             return;
         }

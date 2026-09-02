@@ -1,11 +1,11 @@
 package com.ticketflow.ticketflow.ticket.domain;
 
 import com.ticketflow.ticketflow.common.domain.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.time.Instant;
 
 @Getter
 @Setter
@@ -23,5 +23,8 @@ public class Ticket extends BaseEntity {
     @Column(nullable = false)
     private String uuidCode;
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
     private TicketStatus status;
+    private Instant checkedInAt;
+    private Long checkedInBy;
 }
