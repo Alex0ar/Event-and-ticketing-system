@@ -132,6 +132,18 @@ public class ReservationService {
         return reservationRepository.save(r);
     }
 
+    @Transactional
+    public Reservation cancelReservation(Long reservationId) {
+        Reservation r = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new NotFoundException("Reservation not found"));
+        if (r.getUserId().equals(currentUser.currentUserId())) {
+            throw new  ForbidenException("This reservation doesn't belong to you");
+        }
+        returnInventory(reservationId);
+        r.setStatus(ReservationStatus.REFUNDED);
+        return r;
+    }
+
     // --- helper ---
 
     void returnInventory(Long reservationId) {

@@ -1,5 +1,7 @@
 package com.ticketflow.ticketflow.ticket.service;
 
+import com.ticketflow.ticketflow.common.error.ConflictException;
+import com.ticketflow.ticketflow.common.error.ForbidenException;
 import com.ticketflow.ticketflow.common.error.NotFoundException;
 import com.ticketflow.ticketflow.reservation.domain.ReservationItem;
 import com.ticketflow.ticketflow.reservation.repository.ReservationItemRepository;
@@ -11,6 +13,7 @@ import com.ticketflow.ticketflow.ticket.repository.TicketRepository;
 import com.ticketflow.ticketflow.user.domain.User;
 import com.ticketflow.ticketflow.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +64,28 @@ public class TicketService {
                 .map(t -> toResponse(t, owner.getFullName())).toList();
     }
 
+    @Transactional
+    public List<Ticket> cancelTickets(Long orderId) {
+        List<Ticket> tickets = ticketRepository.findByOrderId(orderId);
+        for (Ticket ticket : tickets) {
+            if (!ticket.getOwnerUserId().equals(currentUser.currentUserId())) {
+                throw new ForbidenException("Ticket doesn't belong to you");
+            }
+            if (ticket.getStatus() == TicketStatus.REFUNDED) {
+                throw new ConflictException("Ticket has already been refunded");
+            }
+            if (ticket.getStatus() != TicketStatus.VALID) {
+                throw new ConflictException("Ticket not valid, so can't be refunded");
+            }
+            ticket.setStatus(TicketStatus.REFUNDED);
+        }
+        return tickets;
+    }
+
+    // --- helper ---
+
     private TicketResponse toResponse(Ticket ticket, String ownerName) {
         return new TicketResponse(ownerName, ticket.getStatus(), ticket.getUuidCode(), ticket.getOwnerUserId(), ticket.getTierId());
     }
+
 }

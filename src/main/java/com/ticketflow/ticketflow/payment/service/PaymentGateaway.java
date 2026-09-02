@@ -9,4 +9,5 @@ import java.math.BigDecimal;
 public interface PaymentGateaway {
     Payment initiatePayment(Order o, String idempotencyKey);
     PaymentResponse charge(Long paymentId);
+    PaymentResponse refund(Long OrderId);
 }

@@ -41,6 +41,16 @@ public class MockPaymentGateaway implements PaymentGateaway {
         return toResponse(paymentRepository.save(p));
     }
 
+    @Override
+    public PaymentResponse refund(Long orderId) {
+        Payment p =  paymentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new NotFoundException("Payment not found"));
+        if  (p.getStatus() == PaymentStatus.SUCCESSED) {
+            p.setStatus(PaymentStatus.REFUNDED);
+        }
+        return toResponse(paymentRepository.save(p));
+    }
+
     private PaymentResponse toResponse(Payment payment) {
         return new PaymentResponse(payment.getId(), payment.getOrderId(), payment.getStatus(), payment.getAmount(), payment.getCurrency());
     }

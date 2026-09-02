@@ -1,6 +1,7 @@
 package com.ticketflow.ticketflow.order;
 
 import com.ticketflow.ticketflow.IntegrationTest;
+import com.ticketflow.ticketflow.common.error.NotFoundException;
 import com.ticketflow.ticketflow.event.domain.Event;
 import com.ticketflow.ticketflow.event.domain.EventStatus;
 import com.ticketflow.ticketflow.event.domain.TicketTier;
@@ -11,6 +12,7 @@ import com.ticketflow.ticketflow.event.repository.VenueRepository;
 import com.ticketflow.ticketflow.order.domain.OrderStatus;
 import com.ticketflow.ticketflow.order.dto.OrderResponse;
 import com.ticketflow.ticketflow.order.service.OrderService;
+import com.ticketflow.ticketflow.payment.domain.Payment;
 import com.ticketflow.ticketflow.payment.domain.PaymentStatus;
 import com.ticketflow.ticketflow.payment.dto.PaymentResponse;
 import com.ticketflow.ticketflow.payment.repository.PaymentRepository;
@@ -159,7 +161,8 @@ public class OrderFlowTest extends IntegrationTest {
         assertThat(orderResponse.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);
         orderResponse = orderService.pay(orderResponse.id(), "aaa111bbb222");
         assertThat(orderResponse.status()).isEqualTo(OrderStatus.PAID);
-        PaymentResponse paymentResponse = paymentRepository.findByOrderId(orderResponse.id());
-        assertThat(paymentResponse.status()).isEqualTo(PaymentStatus.SUCCESSED);
+        Payment payment = paymentRepository.findByOrderId(orderResponse.id())
+                        .orElseThrow(() -> new NotFoundException("Payment not found"));
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.SUCCESSED);
     }
 }

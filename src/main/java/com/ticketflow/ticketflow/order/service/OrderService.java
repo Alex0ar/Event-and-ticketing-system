@@ -1,9 +1,9 @@
 package com.ticketflow.ticketflow.order.service;
 
-import com.ticketflow.ticketflow.common.error.ConflictException;
-import com.ticketflow.ticketflow.common.error.FailedPaymentException;
-import com.ticketflow.ticketflow.common.error.NotFoundException;
-import com.ticketflow.ticketflow.common.error.PaymentInProgres;
+import com.ticketflow.ticketflow.common.error.*;
+import com.ticketflow.ticketflow.event.domain.Event;
+import com.ticketflow.ticketflow.event.domain.EventStatus;
+import com.ticketflow.ticketflow.event.repository.EventRepository;
 import com.ticketflow.ticketflow.order.domain.Order;
 import com.ticketflow.ticketflow.order.domain.OrderStatus;
 import com.ticketflow.ticketflow.order.dto.OrderResponse;
@@ -17,10 +17,15 @@ import com.ticketflow.ticketflow.reservation.domain.ReservationStatus;
 import com.ticketflow.ticketflow.reservation.repository.ReservationRepository;
 import com.ticketflow.ticketflow.reservation.service.ReservationService;
 import com.ticketflow.ticketflow.security.CurrentUserProvider;
+import com.ticketflow.ticketflow.ticket.domain.Ticket;
+import com.ticketflow.ticketflow.ticket.repository.TicketRepository;
 import com.ticketflow.ticketflow.ticket.service.TicketService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -32,8 +37,10 @@ public class OrderService {
     private final PaymentRepository paymentRepository;
     private final PaymentGateaway paymentGateaway;
     private final TicketService ticketService;
+    private final EventRepository eventRepository;
+    private final TicketRepository ticketRepository;
 
-    public OrderService(CurrentUserProvider currentUser, ReservationRepository reservationRepository, ReservationService reservationService, OrderRepository orderRepository, PaymentRepository paymentRepository, PaymentGateaway paymentGateaway, TicketService ticketService) {
+    public OrderService(CurrentUserProvider currentUser, ReservationRepository reservationRepository, ReservationService reservationService, OrderRepository orderRepository, PaymentRepository paymentRepository, PaymentGateaway paymentGateaway, TicketService ticketService, EventRepository eventRepository, TicketRepository ticketRepository) {
         this.currentUser = currentUser;
         this.reservationRepository = reservationRepository;
         this.reservationService = reservationService;
@@ -41,6 +48,8 @@ public class OrderService {
         this.paymentRepository = paymentRepository;
         this.paymentGateaway = paymentGateaway;
         this.ticketService = ticketService;
+        this.eventRepository = eventRepository;
+        this.ticketRepository = ticketRepository;
     }
 
     public OrderResponse createOrder () {
@@ -80,10 +89,40 @@ public class OrderService {
         return orderRepository.findAllByUserId(currentUser.currentUserId());
     }
 
+    @Transactional
+    public OrderResponse cancelOrder(Long orderId) {
+        Order o = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NotFoundException("Order not found"));
+        Ticket ticket = ticketRepository.getById(o.getId());
+        Event event = eventRepository.findById(ticket.getEventId())
+                .orElseThrow(() -> new NotFoundException("Event not found"));
+        if (event.getStatus() == EventStatus.CANCELLED) {
+            throw new ConflictException("The event has been cancelled");
+        }
+        Instant eventStartsAt = event.getStartsAt();
+        if (Instant.now().isAfter(eventStartsAt.minus(24, ChronoUnit.HOURS))) {
+            throw new ConflictException("Can't cancel this order because event is in less the 24 hours");
+        }
+        if (!o.getUserId().equals(currentUser.currentUserId())) {
+            throw new ForbidenException("This order doesn't belong to you");
+        }
+        if (!o.getStatus().equals(OrderStatus.PAID)) {
+            throw new ConflictException("Order was not paid to be cancelled");
+        }
+        reservationService.cancelReservation(o.getReservationId());
+        ticketService.cancelTickets(orderId);
+        paymentGateaway.refund(orderId);
+        o.setStatus(OrderStatus.REFUNDED);
+        return toResponse(orderRepository.save(o));
+    }
+
+    // --- helper ---
+
     private OrderResponse handleExistingPayment(Payment existingPayment) {
         return switch (existingPayment.getStatus()) {
             case FAILED -> throw new FailedPaymentException("Payment failed");
             case INITIATED -> throw new PaymentInProgres("Payment is already initiated");
+            case REFUNDED -> throw new FailedPaymentException("Payment is already refunded");
             case SUCCESSED -> {
                 Order order = orderRepository.findById(existingPayment.getOrderId())
                         .orElseThrow(() -> new NotFoundException("Order not found"));

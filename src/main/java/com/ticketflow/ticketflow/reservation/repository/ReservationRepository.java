@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.QueryHints;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
     boolean existsByUserIdAndStatus(Long userId, ReservationStatus status);

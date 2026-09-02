@@ -9,5 +9,5 @@ import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findByUserIdAndIdempotencyKey(Long userId, String idempotencyKey);
-    PaymentResponse findByOrderId(Long orderId);
+    Optional<Payment> findByOrderId(Long orderId);
 }

@@ -36,4 +36,10 @@ public class OrderController {
     public ResponseEntity<OrderResponse> pay(@PathVariable Long id, @RequestHeader("Idempotency-key") String idempotencyKey) {
         return ResponseEntity.ok(orderService.pay(id, idempotencyKey));
     }
+
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<Void> cancelOrder(@PathVariable Long id) {
+        orderService.cancelOrder(id);
+        return ResponseEntity.ok().build();
+    }
 }
