@@ -16,7 +16,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     boolean existsByUserIdAndStatus(Long userId, ReservationStatus status);
     List<Reservation> findAllByUserId(Long userId);
     Reservation findByUserIdAndStatus(Long userId, ReservationStatus status);
-
+    List<Reservation> findByEventId(Long eventId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))

@@ -14,6 +14,12 @@ import com.ticketflow.ticketflow.event.repository.EventRepository;
 import com.ticketflow.ticketflow.event.repository.EventSpecification;
 import com.ticketflow.ticketflow.event.repository.TicketTierRepository;
 import com.ticketflow.ticketflow.event.repository.VenueRepository;
+import com.ticketflow.ticketflow.order.domain.Order;
+import com.ticketflow.ticketflow.order.domain.OrderStatus;
+import com.ticketflow.ticketflow.order.repository.OrderRepository;
+import com.ticketflow.ticketflow.order.service.OrderService;
+import com.ticketflow.ticketflow.reservation.domain.Reservation;
+import com.ticketflow.ticketflow.reservation.repository.ReservationRepository;
 import com.ticketflow.ticketflow.security.CurrentUserProvider;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -34,12 +40,18 @@ public class EventService {
     private final VenueRepository venueRepository;
     private final TicketTierRepository tierRepository;
     private final CurrentUserProvider currentUser;
+    private final ReservationRepository reservationRepository;
+    private final OrderRepository orderRepository;
+    private final OrderService orderService;
 
-    public EventService(EventRepository eventRepository, VenueRepository venueRepository, TicketTierRepository tierRepository, CurrentUserProvider currentUser) {
+    public EventService(EventRepository eventRepository, VenueRepository venueRepository, TicketTierRepository tierRepository, CurrentUserProvider currentUser, ReservationRepository reservationRepository, OrderRepository orderRepository, OrderService orderService) {
         this.eventRepository = eventRepository;
         this.venueRepository = venueRepository;
         this.tierRepository = tierRepository;
         this.currentUser = currentUser;
+        this.reservationRepository = reservationRepository;
+        this.orderRepository = orderRepository;
+        this.orderService = orderService;
     }
 
     @Transactional
@@ -147,6 +159,22 @@ public class EventService {
         if (!event.getStatus().equals(EventStatus.PUBLISHED) &&  !event.getStatus().equals(EventStatus.SOLD_OUT)) {
             throw new ConflictException("Event has no status PUBLISHED or SOLD_OUT");
         }
+        return toResponse(event, tierRepository.findByEventId(eventId));
+    }
+
+    @Transactional
+    public EventResponse cancelEvent(Long eventId){
+        Event event = loadOwned(eventId);
+        if (event.getStatus().equals(EventStatus.CANCELLED)) {
+            throw new ConflictException("Event has been already CANCELLED");
+        }
+        List<Reservation> reservations = reservationRepository.findByEventId(eventId);
+        List<Long> reservationIds = reservations.stream().map(Reservation::getId).toList();
+        List<Order> orders = reservationIds.isEmpty() ?List.of() : orderRepository.findByReservationIdInAndStatus(reservationIds, OrderStatus.PAID);
+        for (Order order : orders) {
+            orderService.cancelOrder(order.getId());
+        }
+        event.setStatus(EventStatus.CANCELLED);
         return toResponse(event, tierRepository.findByEventId(eventId));
     }
 

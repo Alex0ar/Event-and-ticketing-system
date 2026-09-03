@@ -48,4 +48,9 @@ public class EventAdminController {
     public EventResponse publish(@PathVariable Long id) {
         return eventService.publish(id);
     }
+
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<EventResponse> cancel(@PathVariable Long id) {
+        return ResponseEntity.ok(eventService.cancelEvent(id));
+    }
 }
