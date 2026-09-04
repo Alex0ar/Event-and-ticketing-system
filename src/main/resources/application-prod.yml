@@ -10,3 +10,8 @@ management:
     web:
       exposure:
         include: health, info
+
+# No default: production must supply a real secret or the app refuses to start.
+app:
+  jwt:
+    secret: ${JWT_SECRET}
