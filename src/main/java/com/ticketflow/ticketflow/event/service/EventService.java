@@ -1,5 +1,8 @@
 package com.ticketflow.ticketflow.event.service;
 
+import com.ticketflow.ticketflow.auditlog.domain.AuditLogAction;
+import com.ticketflow.ticketflow.auditlog.domain.AuditReason;
+import com.ticketflow.ticketflow.auditlog.service.AuditLogService;
 import com.ticketflow.ticketflow.common.dto.PageResponse;
 import com.ticketflow.ticketflow.common.error.ConflictException;
 import com.ticketflow.ticketflow.common.error.ForbidenException;
@@ -43,8 +46,9 @@ public class EventService {
     private final ReservationRepository reservationRepository;
     private final OrderRepository orderRepository;
     private final OrderService orderService;
+    private final AuditLogService auditLogService;
 
-    public EventService(EventRepository eventRepository, VenueRepository venueRepository, TicketTierRepository tierRepository, CurrentUserProvider currentUser, ReservationRepository reservationRepository, OrderRepository orderRepository, OrderService orderService) {
+    public EventService(EventRepository eventRepository, VenueRepository venueRepository, TicketTierRepository tierRepository, CurrentUserProvider currentUser, ReservationRepository reservationRepository, OrderRepository orderRepository, OrderService orderService, AuditLogService auditLogService) {
         this.eventRepository = eventRepository;
         this.venueRepository = venueRepository;
         this.tierRepository = tierRepository;
@@ -52,6 +56,7 @@ public class EventService {
         this.reservationRepository = reservationRepository;
         this.orderRepository = orderRepository;
         this.orderService = orderService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -168,11 +173,15 @@ public class EventService {
         if (event.getStatus().equals(EventStatus.CANCELLED)) {
             throw new ConflictException("Event has been already CANCELLED");
         }
+        auditLogService.record(AuditLogAction.EVENT_CANCELATION, "event", event.getId(),
+                Map.of(
+                        "reason", AuditReason.EVENT_CANCELLED
+                ));
         List<Reservation> reservations = reservationRepository.findByEventId(eventId);
         List<Long> reservationIds = reservations.stream().map(Reservation::getId).toList();
         List<Order> orders = reservationIds.isEmpty() ?List.of() : orderRepository.findByReservationIdInAndStatus(reservationIds, OrderStatus.PAID);
         for (Order order : orders) {
-            orderService.cancelOrder(order.getId());
+            orderService.cancelOrder(order.getId(), AuditReason.EVENT_CANCELLED);
         }
         event.setStatus(EventStatus.CANCELLED);
         return toResponse(event, tierRepository.findByEventId(eventId));

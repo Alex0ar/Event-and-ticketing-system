@@ -136,7 +136,7 @@ public class ReservationService {
     public Reservation cancelReservation(Long reservationId) {
         Reservation r = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new NotFoundException("Reservation not found"));
-        if (r.getUserId().equals(currentUser.currentUserId())) {
+        if (!r.getUserId().equals(currentUser.currentUserId())) {
             throw new  ForbidenException("This reservation doesn't belong to you");
         }
         returnInventory(reservationId);

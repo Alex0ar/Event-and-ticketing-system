@@ -1,9 +1,7 @@
 package com.ticketflow.ticketflow.payment.domain;
 
 import com.ticketflow.ticketflow.common.domain.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -22,6 +20,7 @@ public class Payment extends BaseEntity {
     String providerRef;
     @Column(nullable = false)
     BigDecimal amount;
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     PaymentStatus status = PaymentStatus.INITIATED;
     @Column(nullable = false)

@@ -5,6 +5,7 @@ import com.ticketflow.ticketflow.common.error.ForbidenException;
 import com.ticketflow.ticketflow.common.error.NotFoundException;
 import com.ticketflow.ticketflow.reservation.domain.ReservationItem;
 import com.ticketflow.ticketflow.reservation.repository.ReservationItemRepository;
+import com.ticketflow.ticketflow.reservation.repository.ReservationRepository;
 import com.ticketflow.ticketflow.security.CurrentUserProvider;
 import com.ticketflow.ticketflow.ticket.domain.Ticket;
 import com.ticketflow.ticketflow.ticket.domain.TicketStatus;
@@ -24,10 +25,10 @@ public class TicketService {
     private final CurrentUserProvider currentUser;
     private final TicketRepository ticketRepository;
     private final ReservationItemRepository reservationItemRepository;
-    private final ReservationItemRepository reservationRepository;
+    private final ReservationRepository reservationRepository;
     private final UserRepository userRepository;
 
-    public TicketService(CurrentUserProvider currentUser, TicketRepository ticketRepository, ReservationItemRepository reservationItemRepository, ReservationItemRepository reservationRepository, UserRepository userRepository) {
+    public TicketService(CurrentUserProvider currentUser, TicketRepository ticketRepository, ReservationRepository reservationRepository, ReservationItemRepository reservationItemRepository, UserRepository userRepository) {
         this.currentUser = currentUser;
         this.ticketRepository = ticketRepository;
         this.reservationItemRepository = reservationItemRepository;
@@ -36,7 +37,7 @@ public class TicketService {
     }
 
     public void createAndSaveTicket(Long orderId, Long reservationId) {
-        Long eventId = reservationRepository.findById(reservationId).get().getId();
+        Long eventId = reservationRepository.findById(reservationId).get().getEventId();
         List<ReservationItem> items = reservationItemRepository.findByReservationId(reservationId);
         for  (ReservationItem item : items) {
             for (int i = 0; i < item.getQuantity(); i++) {

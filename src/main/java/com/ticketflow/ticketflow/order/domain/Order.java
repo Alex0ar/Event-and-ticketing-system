@@ -1,9 +1,7 @@
 package com.ticketflow.ticketflow.order.domain;
 
 import com.ticketflow.ticketflow.common.domain.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.engine.jdbc.Size;
@@ -23,6 +21,7 @@ public class Order extends BaseEntity {
     BigDecimal total;
     @Column(nullable = false, length = 3)
     String currency;
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     OrderStatus status = OrderStatus.PENDING_PAYMENT;
 }

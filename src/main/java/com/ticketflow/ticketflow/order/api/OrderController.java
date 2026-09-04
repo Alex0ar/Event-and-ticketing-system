@@ -1,5 +1,7 @@
 package com.ticketflow.ticketflow.order.api;
 
+import com.ticketflow.ticketflow.auditlog.domain.AuditLogAction;
+import com.ticketflow.ticketflow.auditlog.domain.AuditReason;
 import com.ticketflow.ticketflow.order.dto.OrderResponse;
 import com.ticketflow.ticketflow.order.service.OrderService;
 import com.ticketflow.ticketflow.security.CurrentUserProvider;
@@ -39,7 +41,7 @@ public class OrderController {
 
     @PostMapping("/{id}/cancel")
     public ResponseEntity<Void> cancelOrder(@PathVariable Long id) {
-        orderService.cancelOrder(id);
+        orderService.cancelOrder(id, AuditReason.CUSTOMER_REQUEST);
         return ResponseEntity.ok().build();
     }
 }

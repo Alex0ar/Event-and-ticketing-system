@@ -22,8 +22,9 @@ public class AuditLog {
     private Long id;
     @Column(nullable = false)
     private Long actorUserId;
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 64)
-    private String action;
+    private AuditLogAction action;
     @Column(nullable = false, length = 64)
     private String entityType;
     @Column(nullable = false)

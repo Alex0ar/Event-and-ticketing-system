@@ -37,13 +37,13 @@ public abstract class IntegrationTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
     }
 
-    @BeforeEach
-    void cleanDatabase() {
-        jdbcTemplate.execute("""
-                TRUNCATE tickets, payments, orders, reservation_items, reservations, ticket_tiers, events, venues, refresh_tokens, user_roles, users
-                RESTART IDENTITY CASCADE
-                """);
-    }
+//    @BeforeEach
+//    void cleanDatabase() {
+//        jdbcTemplate.execute("""
+//                TRUNCATE tickets, payments, orders, reservation_items, reservations, ticket_tiers, events, venues, refresh_tokens, user_roles, users
+//                RESTART IDENTITY CASCADE
+//                """);
+//    }
 
     protected void authenticateAs(User user) {
         var authorities = user.getRoles().stream()

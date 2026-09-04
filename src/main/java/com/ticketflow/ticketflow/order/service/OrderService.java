@@ -1,5 +1,8 @@
 package com.ticketflow.ticketflow.order.service;
 
+import com.ticketflow.ticketflow.auditlog.domain.AuditLogAction;
+import com.ticketflow.ticketflow.auditlog.domain.AuditReason;
+import com.ticketflow.ticketflow.auditlog.service.AuditLogService;
 import com.ticketflow.ticketflow.common.error.*;
 import com.ticketflow.ticketflow.event.domain.Event;
 import com.ticketflow.ticketflow.event.domain.EventStatus;
@@ -27,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class OrderService {
@@ -39,8 +43,9 @@ public class OrderService {
     private final TicketService ticketService;
     private final EventRepository eventRepository;
     private final TicketRepository ticketRepository;
+    private final AuditLogService auditLogService;
 
-    public OrderService(CurrentUserProvider currentUser, ReservationRepository reservationRepository, ReservationService reservationService, OrderRepository orderRepository, PaymentRepository paymentRepository, PaymentGateaway paymentGateaway, TicketService ticketService, EventRepository eventRepository, TicketRepository ticketRepository) {
+    public OrderService(CurrentUserProvider currentUser, ReservationRepository reservationRepository, ReservationService reservationService, OrderRepository orderRepository, PaymentRepository paymentRepository, PaymentGateaway paymentGateaway, TicketService ticketService, EventRepository eventRepository, TicketRepository ticketRepository, AuditLogService auditLogService) {
         this.currentUser = currentUser;
         this.reservationRepository = reservationRepository;
         this.reservationService = reservationService;
@@ -50,6 +55,7 @@ public class OrderService {
         this.ticketService = ticketService;
         this.eventRepository = eventRepository;
         this.ticketRepository = ticketRepository;
+        this.auditLogService = auditLogService;
     }
 
     public OrderResponse createOrder () {
@@ -62,6 +68,7 @@ public class OrderService {
         return toResponse(orderRepository.save(o));
     }
 
+    @Transactional
     public OrderResponse pay(Long orderId, String idempotencyKey) {
         Order o = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NotFoundException("Order not found"));
@@ -90,7 +97,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse cancelOrder(Long orderId) {
+    public OrderResponse cancelOrder(Long orderId, AuditReason reason) {
         Order o = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NotFoundException("Order not found"));
         Ticket ticket = ticketRepository.getById(o.getId());
@@ -113,6 +120,12 @@ public class OrderService {
         ticketService.cancelTickets(orderId);
         paymentGateaway.refund(orderId);
         o.setStatus(OrderStatus.REFUNDED);
+        auditLogService.record(AuditLogAction.ORDER_REFUNDED, "order", o.getId(),
+                Map.of(
+                        "reason", reason,
+                        "total_price", o.getTotal(),
+                        "currency", o.getCurrency()
+                ));
         return toResponse(orderRepository.save(o));
     }
 
