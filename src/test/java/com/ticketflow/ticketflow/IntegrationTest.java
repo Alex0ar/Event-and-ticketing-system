@@ -4,6 +4,7 @@ import com.ticketflow.ticketflow.user.domain.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cache.CacheManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -37,13 +38,19 @@ public abstract class IntegrationTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
     }
 
-//    @BeforeEach
-//    void cleanDatabase() {
-//        jdbcTemplate.execute("""
-//                TRUNCATE tickets, payments, orders, reservation_items, reservations, ticket_tiers, events, venues, refresh_tokens, user_roles, users
-//                RESTART IDENTITY CASCADE
-//                """);
-//    }
+    @Autowired
+    CacheManager cacheManager;
+
+    /** Wipes every table (except Flyway's history) and all caches so tests never see each other's data. */
+    @BeforeEach
+    void cleanDatabase() {
+        String tables = String.join(", ", jdbcTemplate.queryForList("""
+                SELECT tablename FROM pg_tables
+                WHERE schemaname = 'public' AND tablename <> 'flyway_schema_history'
+                """, String.class));
+        jdbcTemplate.execute("TRUNCATE " + tables + " RESTART IDENTITY CASCADE");
+        cacheManager.getCacheNames().forEach(name -> cacheManager.getCache(name).clear());
+    }
 
     protected void authenticateAs(User user) {
         var authorities = user.getRoles().stream()
