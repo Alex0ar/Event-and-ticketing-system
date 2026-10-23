@@ -234,6 +234,8 @@ class FrontendApiIntegrationTest extends IntegrationTest {
                         .header("Access-Control-Request-Headers", "authorization,idempotency-key"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+        mockMvc.perform(get("/actuator/health").header("Origin", "http://localhost:5173"))
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
         mockMvc.perform(options("/api/v1/orders/1/pay")
                         .header("Origin", "https://evil.example")
                         .header("Access-Control-Request-Method", "POST"))

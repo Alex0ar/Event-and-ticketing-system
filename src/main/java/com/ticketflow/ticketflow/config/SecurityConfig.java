@@ -75,6 +75,8 @@ public class SecurityConfig {
         config.setMaxAge(Duration.ofHours(1));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", config);
+        // The frontend pings health to detect a sleeping free-tier instance.
+        source.registerCorsConfiguration("/actuator/health", config);
         return source;
     }
 

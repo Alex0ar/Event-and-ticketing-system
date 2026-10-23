@@ -1,0 +1,1 @@
+export const CATEGORIES = ['CONCERT', 'FESTIVAL', 'CONFERENCE', 'SPORTS', 'THEATRE', 'COMEDY'] as const
