@@ -8,6 +8,7 @@ import java.util.List;
 public record EventResponse(
         Long id,
         Long venueId,
+        VenueSummary venue,
         String title,
         String description,
         String category,

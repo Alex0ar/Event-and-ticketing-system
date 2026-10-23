@@ -25,6 +25,14 @@ public class ReservationController {
         return ResponseEntity.status(HttpStatus.CREATED).body(reservationService.reserve(request));
     }
 
+    /** 200 with the caller's active hold, or 204 if there is none. */
+    @GetMapping("/current")
+    public ResponseEntity<ReservationResponse> current() {
+        return reservationService.getCurrent()
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> release(@PathVariable Long id) {
         reservationService.release(id);

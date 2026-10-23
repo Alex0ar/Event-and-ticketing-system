@@ -1,17 +1,18 @@
 package com.ticketflow.ticketflow.checkin.api;
 
-import com.google.zxing.NotFoundException;
+import com.ticketflow.ticketflow.checkin.dto.CheckInRequest;
+import com.ticketflow.ticketflow.checkin.dto.CheckInResponse;
 import com.ticketflow.ticketflow.checkin.service.CheckInService;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
+import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
-
 @RestController
-@RequestMapping("/api/v1/checkIn")
+@RequestMapping("/api/v1/checkin")
+@PreAuthorize("hasRole('GATE_STAFF')")
 public class CheckInController {
     private final CheckInService checkInService;
 
@@ -19,9 +20,8 @@ public class CheckInController {
         this.checkInService = checkInService;
     }
 
-    @PostMapping("/{qr}")
-    public ResponseEntity<String> checkIn(@PathVariable byte[] qr) throws NotFoundException, IOException {
-        checkInService.checkIn(qr);
-        return ResponseEntity.ok("Check-in successful");
+    @PostMapping
+    public CheckInResponse checkIn(@Valid @RequestBody CheckInRequest request) {
+        return checkInService.checkIn(request.ticketCode().trim());
     }
 }

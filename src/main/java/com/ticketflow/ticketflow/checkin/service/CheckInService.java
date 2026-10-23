@@ -1,55 +1,65 @@
 package com.ticketflow.ticketflow.checkin.service;
 
-import com.google.zxing.BinaryBitmap;
-import com.google.zxing.MultiFormatReader;
-import com.google.zxing.NotFoundException;
-import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
-import com.google.zxing.common.HybridBinarizer;
-import com.ticketflow.ticketflow.common.error.ConflictException;
+import com.ticketflow.ticketflow.checkin.dto.CheckInResponse;
+import com.ticketflow.ticketflow.common.error.ApplicationException;
+import com.ticketflow.ticketflow.common.error.NotFoundException;
+import com.ticketflow.ticketflow.event.repository.EventRepository;
+import com.ticketflow.ticketflow.event.repository.TicketTierRepository;
 import com.ticketflow.ticketflow.security.CurrentUserProvider;
 import com.ticketflow.ticketflow.ticket.domain.Ticket;
-import com.ticketflow.ticketflow.ticket.domain.TicketStatus;
 import com.ticketflow.ticketflow.ticket.repository.TicketRepository;
-import com.ticketflow.ticketflow.ticket.service.TicketService;
+import com.ticketflow.ticketflow.user.repository.UserRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.time.Instant;
 
 @Service
 public class CheckInService {
-    private final TicketService ticketService;
     private final TicketRepository ticketRepository;
+    private final EventRepository eventRepository;
+    private final TicketTierRepository tierRepository;
+    private final UserRepository userRepository;
     private final CurrentUserProvider currentUser;
 
-    public CheckInService(TicketService ticketService, TicketRepository ticketRepository, CurrentUserProvider currentUser) {
-        this.ticketService = ticketService;
+    public CheckInService(TicketRepository ticketRepository, EventRepository eventRepository,
+                          TicketTierRepository tierRepository, UserRepository userRepository,
+                          CurrentUserProvider currentUser) {
         this.ticketRepository = ticketRepository;
+        this.eventRepository = eventRepository;
+        this.tierRepository = tierRepository;
+        this.userRepository = userRepository;
         this.currentUser = currentUser;
     }
 
-    public void checkIn(byte[] pngBytes) throws IOException, NotFoundException {
-        BufferedImage bufferedImage = ImageIO.read(new ByteArrayInputStream(pngBytes));
-        var source = new BufferedImageLuminanceSource(bufferedImage);
-        var bitmap = new BinaryBitmap(new HybridBinarizer(source));
-        String payload = new MultiFormatReader().decode(bitmap).getText();
+    @Transactional
+    public CheckInResponse checkIn(String ticketCode) {
+        Instant now = Instant.now();
+        // Atomic guard: only a VALID ticket flips to USED, so concurrent scans succeed exactly once.
+        int updated = ticketRepository.ticketCheckIn(now, currentUser.currentUserId(), ticketCode);
 
-        int updateSuccess = ticketRepository.ticketCheckIn(Instant.now(), currentUser.currentUserId(), payload);
-        if (updateSuccess > 0) {
-            return;
+        Ticket ticket = ticketRepository.findByUuidCode(ticketCode)
+                .orElseThrow(() -> new NotFoundException("Ticket not found"));
+        if (updated == 0) {
+            throw switch (ticket.getStatus()) {
+                case USED -> rejected("TICKET_ALREADY_USED", "Ticket was already checked in");
+                case REFUNDED -> rejected("TICKET_REFUNDED", "Ticket was refunded");
+                case VOID -> rejected("TICKET_VOID", "Ticket is void (event cancelled)");
+                case VALID -> rejected("TICKET_NOT_VALID", "Ticket could not be checked in");
+            };
         }
-        Ticket ticket = ticketRepository.findByUuidCode(payload)
-                .orElseThrow(() -> new com.ticketflow.ticketflow.common.error.NotFoundException("Ticket not found"));
-        switch(ticket.getStatus()) {
-            case USED -> throw new ConflictException("Ticket has already been used");
-            case REFUNDED ->  throw new ConflictException("Ticket has already been refunded");
-            case VOID ->  throw new ConflictException("Ticket has already been void");
-        }
-        if (ticket.getStatus() != TicketStatus.VALID){
-            throw new com.ticketflow.ticketflow.common.error.ConflictException("Ticket is not valid");
-        }
+        return toResponse(ticket, now);
+    }
+
+    private CheckInResponse toResponse(Ticket ticket, Instant checkedInAt) {
+        String holder = userRepository.findById(ticket.getOwnerUserId()).map(u -> u.getFullName()).orElse("—");
+        String event = eventRepository.findById(ticket.getEventId()).map(e -> e.getTitle()).orElse("—");
+        String tier = tierRepository.findById(ticket.getTierId()).map(t -> t.getName()).orElse("—");
+        return new CheckInResponse(ticket.getUuidCode(), holder, event, tier, checkedInAt);
+    }
+
+    private static ApplicationException rejected(String code, String message) {
+        return new ApplicationException(HttpStatus.CONFLICT, code, message);
     }
 }

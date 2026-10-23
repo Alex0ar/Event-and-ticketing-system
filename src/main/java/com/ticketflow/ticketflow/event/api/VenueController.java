@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("api/v1/venues")
+@RequestMapping("/api/v1/venues")
 @PreAuthorize("hasRole('ORGANIZER')")
 public class VenueController {
     private final VenueService venueService;

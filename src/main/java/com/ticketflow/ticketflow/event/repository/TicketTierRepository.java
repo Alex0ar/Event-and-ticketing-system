@@ -42,4 +42,14 @@ public interface TicketTierRepository extends JpaRepository<TicketTier, Long> {
                 WHERE t.id = :id AND t.reservedQuantity >= :qty
     """)
     int reservedToSold(@Param("id") Long tierId, @Param("qty") int qty);
+
+    /** Refund path: a paid seat goes back to the pool (sold -> available). */
+    @Modifying
+    @Transactional
+    @Query("""
+        UPDATE TicketTier t
+            SET t.soldQuantity = t.soldQuantity - :qty
+                WHERE t.id = :id AND t.soldQuantity >= :qty
+    """)
+    int soldToAvailable(@Param("id") Long tierId, @Param("qty") int qty);
 }

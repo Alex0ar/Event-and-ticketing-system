@@ -136,6 +136,8 @@ public class OrderFlowTest extends IntegrationTest {
         item.setTierId(tierId);
         item.setQuantity(1);
         item.setCreatedAt(Instant.now().minus(11, ChronoUnit.MINUTES));
+        // Hold the seat the way the real reserve path does, so payment can move it reserved -> sold.
+        tierRepository.reserveQuantity(tierId, item.getQuantity());
         return reservationItemRepository.save(item);
     }
 

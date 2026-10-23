@@ -6,18 +6,22 @@ import com.ticketflow.ticketflow.payment.domain.Payment;
 import com.ticketflow.ticketflow.payment.domain.PaymentStatus;
 import com.ticketflow.ticketflow.payment.dto.PaymentResponse;
 import com.ticketflow.ticketflow.payment.repository.PaymentRepository;
-import com.ticketflow.ticketflow.security.CurrentUserProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.math.BigDecimal;
-
+/**
+ * Stand-in for a real payment provider. Charges succeed unless the current HTTP request
+ * carries {@code X-Mock-Payment-Outcome: DECLINE}, which lets the demo UI and tests
+ * exercise the decline-and-retry path without touching the {@link PaymentGateaway} contract.
+ */
 @Service
 public class MockPaymentGateaway implements PaymentGateaway {
-    private final CurrentUserProvider currentUser;
+    public static final String OUTCOME_HEADER = "X-Mock-Payment-Outcome";
+
     private final PaymentRepository paymentRepository;
 
-    public MockPaymentGateaway(CurrentUserProvider currentUser, PaymentRepository paymentRepository) {
-        this.currentUser = currentUser;
+    public MockPaymentGateaway(PaymentRepository paymentRepository) {
         this.paymentRepository = paymentRepository;
     }
 
@@ -27,7 +31,7 @@ public class MockPaymentGateaway implements PaymentGateaway {
         p.setOrderId(o.getId());
         p.setIdempotencyKey(idempotencyKey);
         p.setAmount(o.getTotal());
-        p.setUserId(currentUser.currentUserId());
+        p.setUserId(o.getUserId());
         p.setCurrency(o.getCurrency());
         p.setStatus(PaymentStatus.INITIATED);
         return p;
@@ -37,18 +41,23 @@ public class MockPaymentGateaway implements PaymentGateaway {
     public PaymentResponse charge(Long paymentId) {
         Payment p = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new NotFoundException("Payment not found"));
-        p.setStatus(PaymentStatus.SUCCESSED);
+        p.setStatus(declineRequested() ? PaymentStatus.FAILED : PaymentStatus.SUCCESSED);
         return toResponse(paymentRepository.save(p));
     }
 
     @Override
     public PaymentResponse refund(Long orderId) {
-        Payment p =  paymentRepository.findByOrderId(orderId)
-                .orElseThrow(() -> new NotFoundException("Payment not found"));
-        if  (p.getStatus() == PaymentStatus.SUCCESSED) {
-            p.setStatus(PaymentStatus.REFUNDED);
-        }
+        Payment p = paymentRepository.findFirstByOrderIdAndStatus(orderId, PaymentStatus.SUCCESSED)
+                .orElseThrow(() -> new NotFoundException("No successful payment to refund"));
+        p.setStatus(PaymentStatus.REFUNDED);
         return toResponse(paymentRepository.save(p));
+    }
+
+    private boolean declineRequested() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) {
+            return "DECLINE".equalsIgnoreCase(attrs.getRequest().getHeader(OUTCOME_HEADER));
+        }
+        return false;
     }
 
     private PaymentResponse toResponse(Payment payment) {

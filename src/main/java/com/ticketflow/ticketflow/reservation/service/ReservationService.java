@@ -19,13 +19,13 @@ import com.ticketflow.ticketflow.security.CurrentUserProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.naming.ConfigurationException;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,16 +37,14 @@ public class ReservationService {
     private final TicketTierRepository tierRepository;
     private final EventRepository eventRepository;
     private final CurrentUserProvider currentUser;
-    private final ReservationItemRepository reservationItemRepository;
 
 
-    public ReservationService(ReservationRepository reservationRepository, ReservationItemRepository itemRepository, TicketTierRepository tierRepository, EventRepository eventRepository, CurrentUserProvider currentUser, ReservationItemRepository reservationItemRepository) {
+    public ReservationService(ReservationRepository reservationRepository, ReservationItemRepository itemRepository, TicketTierRepository tierRepository, EventRepository eventRepository, CurrentUserProvider currentUser) {
         this.reservationRepository = reservationRepository;
         this.itemRepository = itemRepository;
         this.tierRepository = tierRepository;
         this.eventRepository = eventRepository;
         this.currentUser = currentUser;
-        this.reservationItemRepository = reservationItemRepository;
     }
 
     @Transactional
@@ -113,7 +111,7 @@ public class ReservationService {
     }
 
     public BigDecimal getReservationTotalCost(Reservation reservation) {
-        List<ReservationItem> items = reservationItemRepository.findByReservationId(reservation.getId());
+        List<ReservationItem> items = itemRepository.findByReservationId(reservation.getId());
         BigDecimal total = BigDecimal.ZERO;
         for (ReservationItem item : items) {
             total = total.add(item.getUnitPriceAmount().multiply(BigDecimal.valueOf(item.getQuantity())));
@@ -121,27 +119,48 @@ public class ReservationService {
         return total;
     }
 
-    public Reservation confirmReservation(Long ReservationId) {
-        Reservation r =  reservationRepository.findById(ReservationId)
+    /** The caller's active hold, if any — lets the checkout page survive a refresh. */
+    @Transactional(readOnly = true)
+    public Optional<ReservationResponse> getCurrent() {
+        Reservation r = reservationRepository.findByUserIdAndStatus(currentUser.currentUserId(), ReservationStatus.PENDING);
+        if (r == null || r.getExpiresAt().isBefore(Instant.now())) {
+            return Optional.empty();
+        }
+        return Optional.of(toResponse(r, itemRepository.findByReservationId(r.getId())));
+    }
+
+    /** Payment succeeded: held seats become sold. */
+    public Reservation confirmReservation(Long reservationId) {
+        Reservation r = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new NotFoundException("Reservation not found"));
-        List<ReservationItem> items = reservationItemRepository.findByReservationId(ReservationId);
-        for  (ReservationItem item : items) {
-            tierRepository.reservedToSold(item.getTierId(), item.getQuantity());
+        for (ReservationItem item : itemRepository.findByReservationId(reservationId)) {
+            if (tierRepository.reservedToSold(item.getTierId(), item.getQuantity()) == 0) {
+                throw new ConflictException("Held seats are no longer reserved");
+            }
         }
         r.setStatus(ReservationStatus.CONFIRMED);
         return reservationRepository.save(r);
     }
 
+    /** Refund of a paid order: sold seats go back to the pool. Ownership is checked by the caller. */
     @Transactional
-    public Reservation cancelReservation(Long reservationId) {
+    public Reservation refundReservation(Long reservationId) {
         Reservation r = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new NotFoundException("Reservation not found"));
-        if (!r.getUserId().equals(currentUser.currentUserId())) {
-            throw new  ForbidenException("This reservation doesn't belong to you");
+        for (ReservationItem item : itemRepository.findByReservationId(reservationId)) {
+            tierRepository.soldToAvailable(item.getTierId(), item.getQuantity());
         }
-        returnInventory(reservationId);
         r.setStatus(ReservationStatus.REFUNDED);
-        return r;
+        return reservationRepository.save(r);
+    }
+
+    /** Event cancellation: drop every unpaid hold for the event and return its seats. */
+    @Transactional
+    public void releasePendingForEvent(Long eventId) {
+        for (Reservation r : reservationRepository.findByEventIdAndStatus(eventId, ReservationStatus.PENDING)) {
+            returnInventory(r.getId());
+            r.setStatus(ReservationStatus.CANCELLED);
+        }
     }
 
     // --- helper ---

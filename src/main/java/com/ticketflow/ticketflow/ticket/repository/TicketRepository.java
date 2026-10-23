@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface TicketRepository extends JpaRepository<Ticket, Long> {
-    List<Ticket> findByOwnerUserId(Long userId);
+    List<Ticket> findByOwnerUserIdOrderByCreatedAtDesc(Long userId);
     Optional<Ticket> findByUuidCode(String code);
     List<Ticket> findByOrderId(Long orderId);
 

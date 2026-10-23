@@ -1,6 +1,7 @@
 package com.ticketflow.ticketflow.payment.repository;
 
 import com.ticketflow.ticketflow.payment.domain.Payment;
+import com.ticketflow.ticketflow.payment.domain.PaymentStatus;
 import com.ticketflow.ticketflow.payment.dto.PaymentResponse;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -10,4 +11,5 @@ import java.util.Optional;
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findByUserIdAndIdempotencyKey(Long userId, String idempotencyKey);
     Optional<Payment> findByOrderId(Long orderId);
+    Optional<Payment> findFirstByOrderIdAndStatus(Long orderId, PaymentStatus status);
 }

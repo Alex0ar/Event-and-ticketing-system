@@ -23,6 +23,7 @@ import com.ticketflow.ticketflow.order.repository.OrderRepository;
 import com.ticketflow.ticketflow.order.service.OrderService;
 import com.ticketflow.ticketflow.reservation.domain.Reservation;
 import com.ticketflow.ticketflow.reservation.repository.ReservationRepository;
+import com.ticketflow.ticketflow.reservation.service.ReservationService;
 import com.ticketflow.ticketflow.security.CurrentUserProvider;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -47,8 +48,9 @@ public class EventService {
     private final OrderRepository orderRepository;
     private final OrderService orderService;
     private final AuditLogService auditLogService;
+    private final ReservationService reservationService;
 
-    public EventService(EventRepository eventRepository, VenueRepository venueRepository, TicketTierRepository tierRepository, CurrentUserProvider currentUser, ReservationRepository reservationRepository, OrderRepository orderRepository, OrderService orderService, AuditLogService auditLogService) {
+    public EventService(EventRepository eventRepository, VenueRepository venueRepository, TicketTierRepository tierRepository, CurrentUserProvider currentUser, ReservationRepository reservationRepository, OrderRepository orderRepository, OrderService orderService, AuditLogService auditLogService, ReservationService reservationService) {
         this.eventRepository = eventRepository;
         this.venueRepository = venueRepository;
         this.tierRepository = tierRepository;
@@ -57,6 +59,7 @@ public class EventService {
         this.orderRepository = orderRepository;
         this.orderService = orderService;
         this.auditLogService = auditLogService;
+        this.reservationService = reservationService;
     }
 
     @Transactional
@@ -109,9 +112,7 @@ public class EventService {
 
     @Transactional(readOnly = true)
     public List<EventResponse> listMine () {
-        return eventRepository.findByOrganizerId(currentUser.currentUserId()).stream()
-                .map(e -> toResponse(e, tierRepository.findByEventId(e.getId())))
-                .toList();
+        return toResponses(eventRepository.findByOrganizerId(currentUser.currentUserId()));
     }
 
     @CacheEvict(value = CacheConfig.EVENT_SEARCH_CAHCE, allEntries = true)
@@ -148,43 +149,35 @@ public class EventService {
     @Transactional(readOnly = true)
     public PageResponse<EventResponse> search(EventSearchFilter filter, Pageable pageable) {
         Page<Event> events = eventRepository.findAll(EventSpecification.fromFilter(filter), pageable);
-        List<Long> eventIds = events.getContent().stream().map(Event::getId).toList();
-        Map<Long, List<TicketTier>> tiersByEvent = eventIds.isEmpty()
-                ? Map.of()
-                : tierRepository.findByEventIdIn(eventIds).stream()
-                  .collect(Collectors.groupingBy(TicketTier::getEventId));
-        List<EventResponse> content = events.getContent().stream()
-                .map(e -> toResponse(e, tiersByEvent.getOrDefault(e.getId(), List.of()))).toList();
-        return PageResponse.from(new PageImpl<>(content, pageable, events.getTotalElements()));
+        return PageResponse.from(new PageImpl<>(toResponses(events.getContent()), pageable, events.getTotalElements()));
     }
 
     @Transactional(readOnly = true)
     public EventResponse getPublic(Long eventId) {
-        Event event = loadOwned(eventId);
-        if (!event.getStatus().equals(EventStatus.PUBLISHED) &&  !event.getStatus().equals(EventStatus.SOLD_OUT)) {
-            throw new ConflictException("Event has no status PUBLISHED or SOLD_OUT");
-        }
+        Event event = eventRepository.findById(eventId)
+                .filter(e -> e.getStatus() == EventStatus.PUBLISHED || e.getStatus() == EventStatus.SOLD_OUT)
+                .orElseThrow(() -> new NotFoundException("Event not found"));
         return toResponse(event, tierRepository.findByEventId(eventId));
     }
 
+    @CacheEvict(value = CacheConfig.EVENT_SEARCH_CAHCE, allEntries = true)
     @Transactional
-    public EventResponse cancelEvent(Long eventId){
+    public EventResponse cancelEvent(Long eventId) {
         Event event = loadOwned(eventId);
         if (event.getStatus().equals(EventStatus.CANCELLED)) {
             throw new ConflictException("Event has been already CANCELLED");
         }
         auditLogService.record(AuditLogAction.EVENT_CANCELATION, "event", event.getId(),
-                Map.of(
-                        "reason", AuditReason.EVENT_CANCELLED
-                ));
-        List<Reservation> reservations = reservationRepository.findByEventId(eventId);
-        List<Long> reservationIds = reservations.stream().map(Reservation::getId).toList();
-        List<Order> orders = reservationIds.isEmpty() ?List.of() : orderRepository.findByReservationIdInAndStatus(reservationIds, OrderStatus.PAID);
-        for (Order order : orders) {
-            orderService.cancelOrder(order.getId(), AuditReason.EVENT_CANCELLED);
-        }
+                Map.of("reason", AuditReason.EVENT_CANCELLED));
+        reservationService.releasePendingForEvent(eventId);
+        List<Long> reservationIds = reservationRepository.findByEventId(eventId).stream()
+                .map(Reservation::getId).toList();
+        List<Order> paidOrders = reservationIds.isEmpty()
+                ? List.of()
+                : orderRepository.findByReservationIdInAndStatus(reservationIds, OrderStatus.PAID);
+        paidOrders.forEach(orderService::refundForCancelledEvent);
         event.setStatus(EventStatus.CANCELLED);
-        return toResponse(event, tierRepository.findByEventId(eventId));
+        return toResponse(eventRepository.save(event), tierRepository.findByEventId(eventId));
     }
 
     // --- helper ---
@@ -198,10 +191,35 @@ public class EventService {
         return event;
     }
 
+    /** Maps a page of events with 2 extra queries total (tiers + venues) — no N+1. */
+    private List<EventResponse> toResponses(List<Event> events) {
+        if (events.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<TicketTier>> tiersByEvent = tierRepository
+                .findByEventIdIn(events.stream().map(Event::getId).toList()).stream()
+                .collect(Collectors.groupingBy(TicketTier::getEventId));
+        Map<Long, Venue> venues = venueRepository
+                .findAllById(events.stream().map(Event::getVenueId).distinct().toList()).stream()
+                .collect(Collectors.toMap(Venue::getId, v -> v));
+        return events.stream()
+                .map(e -> toResponse(e, tiersByEvent.getOrDefault(e.getId(), List.of()), venues.get(e.getVenueId())))
+                .toList();
+    }
+
     private EventResponse toResponse(Event e, List<TicketTier> tiers) {
+        return toResponse(e, tiers, venueRepository.findById(e.getVenueId()).orElse(null));
+    }
+
+    private EventResponse toResponse(Event e, List<TicketTier> tiers, Venue venue) {
         List<TierResponse> tierResponses = tiers.stream()
+                .sorted(java.util.Comparator.comparing(TicketTier::getPrice))
                 .map(this::toTierResponse).toList();
-        return new EventResponse(e.getId(), e.getVenueId(), e.getTitle(), e.getDescription(), e.getCategory(), e.getStartsAt(), e.getEndsAt(), e.getSalesStartsAt(), e.getSalesEndsAt(), e.getStatus(), e.getBannerUrl(), tierResponses);
+        VenueSummary venueSummary = venue == null ? null
+                : new VenueSummary(venue.getId(), venue.getName(), venue.getCity(), venue.getCountry());
+        return new EventResponse(e.getId(), e.getVenueId(), venueSummary, e.getTitle(), e.getDescription(),
+                e.getCategory(), e.getStartsAt(), e.getEndsAt(), e.getSalesStartsAt(), e.getSalesEndsAt(),
+                e.getStatus(), e.getBannerUrl(), tierResponses);
     }
 
     private TierResponse toTierResponse(TicketTier t) {
