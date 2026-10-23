@@ -5,7 +5,9 @@ import com.ticketflow.ticketflow.event.dto.EventCreateRequest;
 import com.ticketflow.ticketflow.event.dto.EventResponse;
 import com.ticketflow.ticketflow.event.dto.TierRequest;
 import com.ticketflow.ticketflow.event.dto.TierResponse;
+import com.ticketflow.ticketflow.event.dto.EventStatsResponse;
 import com.ticketflow.ticketflow.event.service.EventService;
+import com.ticketflow.ticketflow.event.service.EventStatsService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,9 +21,11 @@ import java.util.List;
 @PreAuthorize("hasRole('ORGANIZER')")
 public class EventAdminController {
     private final EventService eventService;
+    private final EventStatsService eventStatsService;
 
-    public EventAdminController(EventService eventService) {
+    public EventAdminController(EventService eventService, EventStatsService eventStatsService) {
         this.eventService = eventService;
+        this.eventStatsService = eventStatsService;
     }
 
     @PostMapping
@@ -47,6 +51,11 @@ public class EventAdminController {
     @PostMapping("/{id}/publish")
     public EventResponse publish(@PathVariable Long id) {
         return eventService.publish(id);
+    }
+
+    @GetMapping("/{id}/stats")
+    public EventStatsResponse stats(@PathVariable Long id) {
+        return eventStatsService.statsFor(id);
     }
 
     @PostMapping("/{id}/cancel")

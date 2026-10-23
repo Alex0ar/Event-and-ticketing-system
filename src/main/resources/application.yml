@@ -29,3 +29,6 @@ app:
     refresh-token-ttl: 604800
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  demo:
+    # demo profile only: wipe and reseed on every boot (keeps a sleeping free-tier demo fresh)
+    reset-on-startup: ${APP_DEMO_RESET_ON_STARTUP:false}

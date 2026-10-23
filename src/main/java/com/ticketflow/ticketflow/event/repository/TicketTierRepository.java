@@ -1,6 +1,7 @@
 package com.ticketflow.ticketflow.event.repository;
 
 import com.ticketflow.ticketflow.event.domain.TicketTier;
+import com.ticketflow.ticketflow.event.dto.TierStats;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -33,6 +34,19 @@ public interface TicketTierRepository extends JpaRepository<TicketTier, Long> {
     int releaseQuantity(@Param("id") Long tierId, @Param("qty") int qty);
 
     boolean existsByReservedQuantityGreaterThan(int value);
+
+    /** Per-tier sales figures for the organizer dashboard, aggregated in the database. */
+    @Query("""
+        select new com.ticketflow.ticketflow.event.dto.TierStats(
+            t.id, t.name, t.price, t.priceCurrency, t.totalQuantity, t.soldQuantity, t.reservedQuantity,
+            t.price * t.soldQuantity,
+            (select count(k) from Ticket k
+                where k.tierId = t.id and k.status = com.ticketflow.ticketflow.ticket.domain.TicketStatus.USED))
+        from TicketTier t
+        where t.eventId = :eventId
+        order by t.price
+    """)
+    List<TierStats> statsForEvent(@Param("eventId") Long eventId);
 
     @Modifying
     @Transactional

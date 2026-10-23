@@ -16,6 +16,21 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     Optional<Ticket> findByUuidCode(String code);
     List<Ticket> findByOrderId(Long orderId);
 
+    interface DailySalesRow {
+        String getDay();
+        Long getTickets();
+    }
+
+    /** Tickets issued per day (refunded/void excluded) for the organizer's sales chart. */
+    @Query(value = """
+        select to_char(date_trunc('day', created_at), 'YYYY-MM-DD') as day, count(*) as tickets
+        from tickets
+        where event_id = :eventId and status in ('VALID', 'USED')
+        group by 1
+        order by 1
+    """, nativeQuery = true)
+    List<DailySalesRow> dailySales(@Param("eventId") Long eventId);
+
     @Modifying
     @Transactional
     @Query("""
