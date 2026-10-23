@@ -65,7 +65,7 @@ export function EventStatsPage() {
               <Legend />
               <Bar dataKey="Sold" stackId="a" fill="#4f46e5" />
               <Bar dataKey="Held" stackId="a" fill="#f59e0b" />
-              <Bar dataKey="Available" stackId="a" fill="#e2e8f0" />
+              <Bar dataKey="Available" stackId="a" fill="#cbd5e1" />
             </BarChart>
           </ResponsiveContainer>
         </Card>

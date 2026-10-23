@@ -30,6 +30,7 @@ test('customer buys a ticket and gate staff admits it exactly once', async ({ pa
   // Browse and hold one seat.
   await page.goto('/events?query=neon')
   await page.getByRole('link', { name: /Neon Nights/ }).click()
+  await expect(page).toHaveURL(/\/events\/\d+$/)
   await page.getByRole('button', { name: 'More' }).first().click()
   await page.getByRole('button', { name: /Hold 1 seat/ }).click()
 
@@ -60,6 +61,7 @@ test('a declined card keeps the hold so the customer can retry', async ({ page }
   await releaseActiveHold(page)
   await page.goto('/events?query=derby')
   await page.getByRole('link', { name: /Bucharest Derby/ }).click()
+  await expect(page).toHaveURL(/\/events\/\d+$/)
   await page.getByRole('button', { name: 'More' }).first().click()
   await page.getByRole('button', { name: /Hold 1 seat/ }).click()
 

@@ -1,0 +1,25 @@
+# Render Blueprint for the TicketFlow API (free web service, Docker).
+# The database lives on Neon (free, persistent) — fill in DB_* when Render asks.
+services:
+  - type: web
+    name: ticketflow-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod,demo
+      # Wipe and reseed demo data on every boot, so each cold start serves fresh data.
+      - key: APP_DEMO_RESET_ON_STARTUP
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_URL
+        sync: false   # jdbc:postgresql://<neon-host>/<db>?sslmode=require
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: APP_CORS_ALLOWED_ORIGINS
+        sync: false   # https://<your-app>.vercel.app
